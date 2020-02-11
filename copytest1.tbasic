@@ -1,0 +1,134 @@
+﻿
+uses "Console"
+uses "File"
+uses "OS"
+uses "UI"
+uses "MMF"
+
+Begin ControlID
+%Label1
+%Label2
+%Button1
+End ControlID
+
+dim myTime as DWord = Timer
+
+function TBMain() as Long
+
+  Global hdlg as Long
+  Global FileSize as quad
+  Global T0 as quad
+  Local count as long
+  Local sSFile, sDpath as String
+  Local mbresult as Long
+
+  CreateMMFShare
+  makeui
+
+  sSFile = Dialog_OpenFile(hDlg, "Source file", DIR_GetCurrent, "All Files (*.*)|*.*" , "*", %OFN_FILEMUSTEXIST)
+  sDpath = Dialog_BrowseForFolder(hDlg, "Destination folder", DIR_GetCurrent, %TRUE) & FILE_PathSplit(sSFile, %Path_FileExt)
+
+  mbresult = MsgBox 0, sSFile & $crlf & "will be copied to" & $crlf & sDpath, %MB_OKCANCEL
+
+  if mbresult <> %IDOK Then
+    MsgBox 0, "Aborting demo"
+    Stop
+  endif
+
+  sourcepath = sSFile
+  destpath = sDpath
+  FileSize = FILE_Size(sSFile)
+  msgbox 0, "File : " & sSFile & $crlf & "Size : " & FileSize
+  
+  Do
+    DIALOG DOEVENTS 0 To Count
+    updateLabel1
+  Loop While Count
+
+  printl "All done. Press a key to end"
+  WaitKey
+
+end function
+
+function copyIt() as long
+  
+  T0 = GetTickCount
+  os_Shell("T:\TEMP\_dev\thinBasic\thinBasicc.exe t:\copyfile.tbasic ")
+
+end Function
+
+CALLBACK Function DlgCallback() As Long
+  Select Case CBMSG
+    Case %WM_Command
+      If CBCTLMSG = %BN_CLICKED Then
+        SELECT CASE cbctl
+          case %Button1
+            call copyIt
+        end Select
+      endif
+    Case %WM_DESTROY
+      MSGBOX 0, "Closing..."
+  End Select
+End Function
+
+Function MakeUi()
+
+  DIALOG NEW 0, "form1", -1, -1, 480, 480, %WS_DLGFRAME OR %DS_CENTER OR %WS_CAPTION OR %WS_SYSMENU, 0 TO hDlg
+
+  CONTROL ADD Label , hDlg, %label1, "...",   5,  15, 400, 15, %WS_BORDER OR %ES_RIGHT, %WS_EX_CLIENTEDGE
+  CONTROL ADD Label , hDlg, %label2, "...",   5,  35, 400, 300, %WS_BORDER OR %ES_RIGHT, %WS_EX_CLIENTEDGE
+  CONTROL ADD BUTTON  , hDlg, %button1,"Start COPY",  65,  420,  45, 20
+
+  DIALOG SHOW MODELESS hDlg Call DlgCallback
+
+end function
+
+Function updateLabel1()
+
+  Local sLabel1 as String
+  Local sLabel2 as String
+  Local nTime as DWord
+
+  nTime = Timer - myTime
+  sLabel1 = "Script is running since : " & nTime & " seconds"
+  
+  if FileSize>0 then
+    sLabel2 = Format$(fileCopyStatus/1000000 , "0.00") & " / " & Format$(FileSize/1000000, "0.00") & " MB ( " & str$(fix(100 * fileCopyStatus / FileSize)) & " % ) ( " & Format$(fileCopyStatus / 1000 / (GetTickCount - T0 + 0.001),"0.00") & " MB/s )"
+  Else
+    sLabel2 = "Click on the START button"
+  endif
+  CONTROL SET TEXT hDlg, %label1, sLabel1
+  CONTROL SET TEXT hDlg, %label2, sLabel2
+
+end function
+
+function CreateMMFShare()
+
+  global MyMMF As New cMMF
+
+  global fileCopyStatus as quad ptr
+  global sourcepath as string * 32767 ptr
+  global destpath as string * 32767 Ptr
+
+  MyMMF.create("MMF_ID_LM1", SizeOf(fileCopyStatus) + SizeOf(sourcepath) + SizeOf(destpath))
+
+  if MyMMF.status = %TRUE Then
+    Local MMFpos as dword = myMMF.MemoryPtr
+
+    SetAt(fileCopyStatus, MMFpos)
+    MMFpos += SizeOf(fileCopyStatus)
+
+    SetAt(sourcepath, MMFpos)
+    MMFpos += SizeOf(sourcepath)
+
+    SetAt(destpath, MMFpos)
+'MMFpos += SizeOf(destpath)
+
+  Else
+    MsgBox 0, "Could not create MMF. Ending..."
+    stop
+  end if
+
+end function
+
+

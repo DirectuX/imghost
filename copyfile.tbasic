@@ -1,0 +1,98 @@
+﻿'---Script created on 02-09-2020 20:31:58 by 
+'---References
+'     https://docs.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-copyfileexa
+'     https://docs.microsoft.com/it-it/windows/win32/api/winbase/nc-winbase-lpprogress_routine
+'---------------------------------------------------------------------------------------------
+ 
+uses "Console"
+uses "File"
+uses "OS"
+uses "MMF"
+'Uses "Trace"
+
+
+ '[] [REF] https://docs.microsoft.com/en-us/previous-versions/windows/desktop/legacy/aa379560(v%3Dvs.85)
+  TYPE SECURITY_ATTRIBUTES DWORD
+    nLength AS DWORD
+    lpSecurityDescriptor AS DWORD
+    bInheritHandle AS LONG
+  END TYPE
+   
+  callback Function CopyProgressRoutine( 
+                                  ByVal TotalFileSize           As Quad,   ' // total file size, in bytes
+                                  ByVal TotalBytesTransferred   As Quad,   ' // total number of bytes transferred
+                                  ByVal StreamSize              As Quad,   ' // total number of bytes for this stream
+                                  ByVal StreamBytesTransferred  As Quad,   ' // total number of bytes transferred for this stream
+                                  ByVal dwStreamNumber          As Long,   ' // the current stream
+                                  ByVal dwCallbackReason        As Long,   ' // reason for callback
+                                  ByVal hSourceFile             As Long,   ' // handle to the source file
+                                  ByVal hDestinationFile        As Long,   ' // handle to the destination file
+                                  ByVal lpData                  As Long  ) As Long
+ 
+ 
+  'Function should send back one of the following:
+  ' %FILE_PROGRESS_CONTINUE  Continue the copy operation.
+  ' %FILE_PROGRESS_CANCEL    Cancel the copy operation and delete the destination file.
+  ' %FILE_PROGRESS_STOP      Stop the copy operation. It can be restarted at a later time.
+  ' %FILE_PROGRESS_QUIET     Continue the copy operation, but stop invoking CopyProgressRoutine to report progress.
+ 
+    fileCopyStatus = TotalBytesTransferred
+    function = %FILE_PROGRESS_CONTINUE
+ 
+ 
+  end Function
+
+function TBMain() as Long
+
+CreateMMFShare
+copyIt
+
+end Function
+
+function copyIt() as long
+  string sFileSource      = trim$(sourcepath) 
+  string sFileDestination = Trim$(destpath)
+  
+  long   lRet
+   
+   
+  print "Copying: " & sFileSource at 1, 1
+  print "To.....: " & sFileDestination at 1,2
+   
+   
+  lRet = file_copyex(sFileSource, sFileDestination, CopyProgressRoutine)
+
+   
+  print "Result.: " & lret at 1, 5
+end Function
+
+function CreateMMFShare()
+
+  global MyMMF As New cMMF
+  
+  global fileCopyStatus as quad ptr
+  global sourcepath as string * 32767 ptr
+  global destpath as string * 32767 Ptr
+  
+  MyMMF.create("MMF_ID_LM1", SizeOf(fileCopyStatus) + SizeOf(sourcepath) + SizeOf(destpath))
+
+  if MyMMF.status = %TRUE Then
+    Local MMFpos as dword = myMMF.MemoryPtr
+    
+    
+    SetAt(fileCopyStatus, MMFpos)
+    MMFpos += SizeOf(fileCopyStatus)
+    
+    SetAt(sourcepath, MMFpos)
+    MMFpos += SizeOf(sourcepath)
+    
+    SetAt(destpath, MMFpos)
+    'MMFpos += SizeOf(destpath)
+    
+  Else
+    MsgBox 0, "Could not create MMF. Ending..."
+    end
+  end if
+
+end function
+
